@@ -139,6 +139,16 @@ export function seedDatabase() {
       verified: false,
       verifiedBy: null,
     },
+    {
+      id: 'doc-3',
+      studentId: 'u-student',
+      studentName: 'John Student',
+      name: 'Passport_ID.pdf',
+      type: 'identity-passport',
+      uploadedAt: '2026-04-09',
+      verified: false,
+      verifiedBy: null,
+    },
   ];
 
   const announcements = [

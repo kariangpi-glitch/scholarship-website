@@ -894,6 +894,47 @@ a {
   border-radius: 8px;
 }
 
+.identity-cell {
+  min-width: 10rem;
+  vertical-align: top;
+}
+
+.identity-cell__btn {
+  margin-top: 0.4rem;
+  display: block;
+}
+
+.identity-cell__meta {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.identity-flag {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.identity-flag--ok {
+  color: var(--green);
+}
+
+.actions-cell__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+  max-width: 12rem;
+  line-height: 1.4;
+}
+
+.declined-apps-card {
+  margin-top: 1.25rem;
+}
+
 .fraud-flag {
   display: block;
   font-size: 0.7rem;
@@ -1294,249 +1335,4 @@ a {
   .main-content {
     padding: 1rem;
   }
-}
-
-/* Application remarks */
-.app-remarks {
-  padding: 1rem;
-  background: var(--bg-subtle, #f8fafc);
-  border-radius: 8px;
-  margin-top: 0.5rem;
-}
-
-.app-remarks__title {
-  font-size: 0.95rem;
-  margin: 0 0 0.35rem;
-}
-
-.app-remarks__hint {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin: 0 0 0.75rem;
-}
-
-.app-remarks__empty {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.app-remarks__list {
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0;
-}
-
-.app-remarks__item {
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  background: var(--bg-card);
-  border-radius: 8px;
-  border-left: 3px solid #2563eb;
-}
-
-.app-remarks__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.8rem;
-  margin-bottom: 0.35rem;
-}
-
-.app-remarks__role {
-  color: var(--text-muted);
-}
-
-.app-remarks__time {
-  color: var(--text-muted);
-  margin-left: auto;
-}
-
-.app-remarks__text {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.app-remarks__form textarea {
-  width: 100%;
-  margin-bottom: 0.5rem;
-}
-
-.app-remarks__templates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.app-remarks__templates-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  width: 100%;
-}
-
-.app-remarks__template-btn {
-  font-size: 0.75rem;
-  max-width: 100%;
-  text-align: left;
-  white-space: normal;
-  height: auto;
-  padding: 0.35rem 0.6rem;
-}
-
-/* Student document upload on application */
-.app-doc-upload {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.app-doc-upload__title {
-  font-size: 0.95rem;
-  margin: 0 0 0.5rem;
-}
-
-.app-doc-upload__alert {
-  margin-bottom: 0.75rem;
-}
-
-.app-doc-upload__section {
-  margin-bottom: 1rem;
-}
-
-.app-doc-upload__label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem;
-}
-
-.app-doc-upload__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.app-doc-upload__list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.9rem;
-}
-
-.app-doc-upload__kind {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
-.app-doc-upload__kind label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-.app-doc-upload__replacing {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: 0 0 0.75rem;
-}
-
-.app-detail-row td {
-  background: var(--bg-subtle, #f8fafc);
-}
-
-/* Notifications */
-.notification-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.notification-item {
-  padding: 1rem;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-}
-
-.notification-item:last-child {
-  border-bottom: none;
-}
-
-.notification-item--unread {
-  background: #eff6ff;
-}
-
-.notification-item__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.35rem;
-}
-
-.notification-item__header time {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.notification-item__badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #1d4ed8;
-}
-
-.notification-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.notification-item__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
-.notification-item__delete {
-  margin-left: auto;
-}
-
-.fund-block-modal .form-actions {
-  margin-top: 1rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.eligibility-docs-card {
-  margin: 1rem 0;
-  padding: 1rem !important;
-  background: var(--bg-subtle, #f8fafc);
-}
-
-.eligibility-doc-list {
-  list-style: none;
-  margin: 1rem 0 0;
-  padding: 0;
-}
-
-.eligibility-doc-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--border);
 }

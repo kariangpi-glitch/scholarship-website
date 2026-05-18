@@ -67,14 +67,38 @@ export function detectBankFraud(studentId, bankAccount) {
   return warnings;
 }
 
+export function getStudentPassportDocs(documents, studentId) {
+  return documents.filter((d) => d.studentId === studentId && d.type === 'identity-passport');
+}
+
 export function hasVerifiedIdentity(user, documents) {
   const profileOk = user?.identityVerified === true;
-  const docOk = documents.some(
-    (d) =>
-      d.studentId === user?.id &&
-      d.type === 'identity-passport' &&
-      d.verified &&
-      d.fileData
-  );
+  const docOk = getStudentPassportDocs(documents, user?.id).some((d) => d.verified && d.fileData);
   return profileOk || docOk;
+}
+
+export function getIdentityVerificationSummary(user, documents) {
+  const passportDocs = getStudentPassportDocs(documents, user?.id);
+  const hasUpload = passportDocs.some((d) => d.fileData);
+  const docVerified = passportDocs.some((d) => d.verified);
+  const institutionVerified = user?.identityVerified === true;
+  return {
+    hasUpload,
+    docVerified,
+    institutionVerified,
+    readyForAdmin: institutionVerified || docVerified,
+    institutionName: user?.identityVerifiedByInstitutionName || null,
+    verifiedAt: user?.identityVerifiedAt || null,
+  };
+}
+
+export function canInstitutionApproveIdentity(user, documents) {
+  const summary = getIdentityVerificationSummary(user, documents);
+  if (!summary.hasUpload) {
+    return { ok: false, reason: 'Student has not uploaded a Passport / photo ID document yet.' };
+  }
+  if (summary.readyForAdmin) {
+    return { ok: false, reason: 'Student identity is already verified.' };
+  }
+  return { ok: true };
 }

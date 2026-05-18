@@ -1,8 +1,16 @@
 import { hasCompleteBankDetails, hasVerifiedIdentity } from './bankHelpers';
-import {
-  getLatestFundRecord,
-  studentHasReceivedScholarshipFund,
-} from './fundHelpers';
+import { studentIsBlockedFromApplying } from './fundHelpers';
+
+export function studentCanApplyForScholarship(user, applications, fundRecords) {
+  if (studentIsBlockedFromApplying(user, fundRecords, applications)) {
+    return {
+      ok: false,
+      reason:
+        'You have already received scholarship funds. The administration must allow you to apply again before you can submit a new application.',
+    };
+  }
+  return { ok: true };
+}
 
 export function isForwardedToAdmin(app) {
   if (app.forwardedToAdmin === true) return true;
@@ -11,6 +19,10 @@ export function isForwardedToAdmin(app) {
 
 export function isFinalized(app) {
   return app.status === 'approved' || app.status === 'rejected' || app.status === 'declined';
+}
+
+export function isDeclinedByAdmin(app) {
+  return app.status === 'rejected' || app.status === 'declined';
 }
 
 export function isWithdrawn(app) {
@@ -24,11 +36,13 @@ export function canWithdraw(app) {
 }
 
 export function canStudentDeleteApplication(app) {
+  if (isDeclinedByAdmin(app) && !app.fundStatus) return true;
   return isWithdrawn(app) || canDeleteAfterFund(app);
 }
 
 export function canStaffDeleteApplication(app) {
   if (app.fundStatus === 'received') return true;
+  if (isDeclinedByAdmin(app) && !app.fundStatus) return true;
   if (isWithdrawn(app)) return true;
   if (app.forwardedToAdmin || app.institutionStatus === 'verified') return true;
   if (isFinalized(app)) return true;
@@ -48,7 +62,11 @@ export function canApproveApplication(app, student, documents) {
     return { ok: false, reason: 'Student has not provided bank account details.' };
   }
   if (!hasVerifiedIdentity(student, documents)) {
-    return { ok: false, reason: 'Student identity (passport / photo ID) is not verified.' };
+    return {
+      ok: false,
+      reason:
+        'Student identity is not verified. The institution must approve the passport / photo ID before you can approve.',
+    };
   }
   return { ok: true };
 }
@@ -80,87 +98,4 @@ export function canMarkFundReceived(app) {
 
 export function canDeleteAfterFund(app) {
   return app.fundStatus === 'received';
-}
-
-export function studentHasReceivedFund(applications, studentId, user, fundRecords = []) {
-  return studentHasReceivedScholarshipFund(user, fundRecords, applications, studentId);
-}
-
-export function getReceivedFundApplication(applications, studentId) {
-  return applications.find(
-    (a) => a.studentId === studentId && a.fundStatus === 'received'
-  );
-}
-
-/** Block new applications after receiving a fund unless admin re-enabled eligibility. */
-export function studentCanApplyForScholarship(user, applications, fundRecords = []) {
-  const received = studentHasReceivedScholarshipFund(
-    user,
-    fundRecords,
-    applications,
-    user.id
-  );
-  if (!received) return { ok: true };
-  if (user.scholarshipReapplyAllowed === true) return { ok: true };
-  return {
-    ok: false,
-    reason:
-      'You have already received a scholarship fund. Contact administration if you need to apply again.',
-  };
-}
-
-/** Admin cannot send fund if student already received on a different application. */
-export function canSendFundToStudent(app, applications, fundRecords = [], studentUser) {
-  if (!canSendFund(app)) return { ok: false, reason: 'Fund cannot be sent for this application.' };
-
-  const received = studentHasReceivedScholarshipFund(
-    studentUser,
-    fundRecords,
-    applications,
-    app.studentId
-  );
-  if (!received) return { ok: true };
-
-  const priorApp = getReceivedFundApplication(applications, app.studentId);
-  if (priorApp && priorApp.id === app.id) {
-    return { ok: false, reason: 'This application already has fund activity recorded.' };
-  }
-
-  const priorRecord = getLatestFundRecord(fundRecords, applications, studentUser, app.studentId);
-  const title =
-    priorApp?.scholarshipTitle ||
-    priorRecord?.scholarshipTitle ||
-    studentUser?.lastReceivedScholarshipTitle ||
-    'a prior scholarship';
-
-  return {
-    ok: false,
-    reason: `Student already received funds for "${title}".`,
-    priorApplication: priorApp,
-    priorRecord,
-  };
-}
-
-export function getApplicationRemarks(app) {
-  return app.remarks || app.comments || [];
-}
-
-export function getApplicationDocuments(documents, applicationId) {
-  return documents.filter((d) => d.applicationId === applicationId);
-}
-
-export function getStudentGeneralDocuments(documents, studentId) {
-  return documents.filter((d) => d.studentId === studentId && !d.applicationId);
-}
-
-export function allApplicationDocsVerified(documents, applicationId) {
-  const appDocs = getApplicationDocuments(documents, applicationId);
-  if (appDocs.length === 0) return false;
-  return appDocs.every((d) => d.verified);
-}
-
-export function allGeneralDocsVerified(documents, studentId) {
-  const docs = getStudentGeneralDocuments(documents, studentId);
-  if (docs.length === 0) return false;
-  return docs.every((d) => d.verified);
 }

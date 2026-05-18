@@ -1,9 +1,7 @@
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
-import ApplicationRemarks from '../../components/ApplicationRemarks';
-import ApplicationDocumentUpload from '../../components/ApplicationDocumentUpload';
 import {
   getStudentApprovedApps,
   studentNeedsAwardSelection,
@@ -11,11 +9,11 @@ import {
   canWithdraw,
   canStudentDeleteApplication,
   isWithdrawn,
-  getApplicationRemarks,
+  isDeclinedByAdmin,
 } from '../../utils/applicationHelpers';
 
 export default function MyApplications() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const {
     getApplications,
     selectAward,
@@ -26,14 +24,13 @@ export default function MyApplications() {
   } = useData();
   void tick;
 
-  const [expandedId, setExpandedId] = useState(null);
-  const [showPicker, setShowPicker] = useState(false);
-
   const allMine = getApplications().filter((a) => a.studentId === user.id);
-  const apps = allMine.filter((a) => a.status !== 'withdrawn');
-  const withdrawn = allMine.filter(isWithdrawn);
+  const declined = allMine.filter((a) => isDeclinedByAdmin(a));
+  const apps = allMine.filter((a) => a.status !== 'withdrawn' && !isDeclinedByAdmin(a));
+  const withdrawn = allMine.filter((a) => isWithdrawn(a));
   const approved = getStudentApprovedApps(allMine, user.id);
   const needsChoice = studentNeedsAwardSelection(allMine, user.id);
+  const [showPicker, setShowPicker] = useState(false);
 
   const handleWithdraw = (id) => {
     if (window.confirm('Withdraw this application? You can delete it permanently after withdrawing.')) {
@@ -52,7 +49,7 @@ export default function MyApplications() {
       <div className="page-intro">
         <h2 className="page-title">My applications</h2>
         <p className="page-subtitle">
-          Track decisions, institution remarks, and fund disbursement. Confirm when you receive funds.
+          Track decisions, withdraw applications, and manage fund disbursement for your award.
         </p>
       </div>
 
@@ -92,79 +89,79 @@ export default function MyApplications() {
                 <th>Submitted</th>
                 <th>Status</th>
                 <th>Fund</th>
-                <th>Remarks</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {apps.map((a) => {
-                const remarks = getApplicationRemarks(a);
-                const remarkCount = remarks.length;
-                const needsUpload = a.documentUploadRequested;
-                const expanded = expandedId === a.id;
-                return (
-                  <Fragment key={a.id}>
-                    <tr>
-                      <td>{a.scholarshipTitle}</td>
-                      <td>{a.appliedAt}</td>
-                      <td>
-                        <StatusBadge status={a.status} />
-                        {a.selectedForAward && <StatusBadge status="approved" label="Your award" />}
-                      </td>
-                      <td>
-                        {a.fundStatus === 'sent' && <StatusBadge status="fund-sent" />}
-                        {a.fundStatus === 'received' && <StatusBadge status="fund-received" />}
-                        {!a.fundStatus && <span className="cell-muted">—</span>}
-                      </td>
-                      <td>
-                        {remarkCount > 0 || needsUpload ? (
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${needsUpload ? 'btn-primary' : 'btn-secondary'}`}
-                            onClick={() => setExpandedId(expanded ? null : a.id)}
-                          >
-                            {needsUpload ? 'Upload requested' : `${remarkCount} remark${remarkCount !== 1 ? 's' : ''}`}
-                          </button>
-                        ) : (
-                          <span className="cell-muted">—</span>
-                        )}
-                      </td>
-                      <td className="actions-cell">
-                        {canWithdraw(a) && (
-                          <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleWithdraw(a.id)}>
-                            Withdraw
-                          </button>
-                        )}
-                        {canMarkFundReceived(a) && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => {
-                              markFundReceived(a.id);
-                              refreshUser();
-                            }}
-                          >
-                            Confirm fund received
-                          </button>
-                        )}
-                        {canStudentDeleteApplication(a) && a.fundStatus === 'received' && (
-                          <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(a.id)}>
-                            Delete
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {expanded && (
-                      <tr className="app-detail-row">
-                        <td colSpan={6}>
-                          <ApplicationRemarks application={a} showStudentHint />
-                          <ApplicationDocumentUpload application={a} />
-                        </td>
-                      </tr>
+              {apps.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.scholarshipTitle}</td>
+                  <td>{a.appliedAt}</td>
+                  <td>
+                    <StatusBadge status={a.status} />
+                    {a.selectedForAward && <StatusBadge status="approved" label="Your award" />}
+                  </td>
+                  <td>
+                    {a.fundStatus === 'sent' && <StatusBadge status="fund-sent" />}
+                    {a.fundStatus === 'received' && <StatusBadge status="fund-received" />}
+                    {!a.fundStatus && <span className="cell-muted">—</span>}
+                  </td>
+                  <td className="actions-cell">
+                    {canWithdraw(a) && (
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleWithdraw(a.id)}>
+                        Withdraw
+                      </button>
                     )}
-                  </Fragment>
-                );
-              })}
+                    {canMarkFundReceived(a) && (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => markFundReceived(a.id)}>
+                        Confirm fund received
+                      </button>
+                    )}
+                    {canStudentDeleteApplication(a) && (isDeclinedByAdmin(a) || a.fundStatus === 'received') && (
+                      <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(a.id)}>
+                        {isDeclinedByAdmin(a) ? 'Delete declined application' : 'Delete'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {declined.length > 0 && (
+        <div className="card declined-apps-card">
+          <h3 className="card-heading">Declined applications</h3>
+          <p className="signup-section-desc">
+            These applications were declined by the administration. You may permanently remove them from your records.
+          </p>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Program</th>
+                <th>Submitted</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {declined.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.scholarshipTitle}</td>
+                  <td>{a.appliedAt}</td>
+                  <td>
+                    <StatusBadge status={a.status} />
+                  </td>
+                  <td className="actions-cell">
+                    {canStudentDeleteApplication(a) && (
+                      <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(a.id)}>
+                        Delete permanently
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -173,6 +170,7 @@ export default function MyApplications() {
       {withdrawn.length > 0 && (
         <div className="card" style={{ marginTop: '1.25rem' }}>
           <h3 className="card-heading">Withdrawn applications</h3>
+          <p className="signup-section-desc">Remove records you no longer need after withdrawing.</p>
           <table className="data-table">
             <thead>
               <tr><th>Program</th><th>Withdrawn</th><th>Actions</th></tr>

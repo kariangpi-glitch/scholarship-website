@@ -1,46 +1,31 @@
 import { useState } from 'react';
 import { KEYS, getItem } from '../../utils/storage';
-import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import StatusBadge from '../../components/StatusBadge';
 import {
   filterApplicationsForAdmin,
   canAdminDecide,
   isFinalized,
+  isDeclinedByAdmin,
   canApproveApplication,
   canSendFund,
-  canSendFundToStudent,
   canStaffDeleteApplication,
-  studentHasReceivedFund,
 } from '../../utils/applicationHelpers';
-import { detectBankFraud } from '../../utils/bankHelpers';
+import { detectBankFraud, getIdentityVerificationSummary } from '../../utils/bankHelpers';
 
 export default function AdminApplications() {
-  const { user } = useAuth();
-  const {
-    getApplications,
-    getFundRecords,
-    getDocuments,
-    updateApplication,
-    sendFund,
-    deleteApplication,
-    allowStudentReapply,
-    tick,
-  } = useData();
+  const { getApplications, getDocuments, updateApplication, sendFund, deleteApplication, tick } = useData();
   void tick;
-
   const [msg, setMsg] = useState('');
-  const [fundBlock, setFundBlock] = useState(null);
 
-  const allApplications = getApplications();
-  const fundRecords = getFundRecords();
-  const apps = filterApplicationsForAdmin(allApplications);
+  const apps = filterApplicationsForAdmin(getApplications());
   const documents = getDocuments();
 
   const getStudent = (id) => getItem(KEYS.users, []).find((u) => u.id === id);
 
   const handleDecision = (app, status) => {
     const student = getStudent(app.studentId);
+    const allApps = getApplications();
     if (status === 'approved') {
       const check = canApproveApplication(app, student, documents);
       if (!check.ok) {
@@ -51,7 +36,7 @@ export default function AdminApplications() {
       if (fraud.length > 0) {
         setMsg(`Fraud warning: ${fraud[0].message} Review before approving.`);
       }
-      const otherApproved = allApplications.filter(
+      const otherApproved = allApps.filter(
         (a) => a.studentId === app.studentId && a.id !== app.id && a.status === 'approved'
       );
       const updates = { status: 'approved' };
@@ -62,28 +47,6 @@ export default function AdminApplications() {
     }
     setMsg('');
     updateApplication(app.id, { status });
-  };
-
-  const handleSendFund = (app) => {
-    const check = canSendFundToStudent(app, allApplications, fundRecords, getStudent(app.studentId));
-    if (!check.ok) {
-      setFundBlock({ app, prior: check.priorApplication, reason: check.reason });
-      return;
-    }
-    const result = sendFund(app.id);
-    if (!result.ok) {
-      setFundBlock({ app, prior: result.priorApplication, reason: result.reason });
-      return;
-    }
-    setMsg('');
-    setFundBlock(null);
-  };
-
-  const handleDeleteBlocked = () => {
-    if (!fundBlock) return;
-    deleteApplication(fundBlock.app.id);
-    setFundBlock(null);
-    setMsg('Application removed. Student was notified that they already received a scholarship fund.');
   };
 
   const fundLabel = (app) => {
@@ -97,39 +60,11 @@ export default function AdminApplications() {
       <div className="page-intro">
         <h2 className="page-title">Application review</h2>
         <p className="page-subtitle">
-          Approve when bank details and verified identity are on file. Sending funds is blocked if the student already received a scholarship.
+          Approve when bank details and institution-verified identity are on file. Students and institutions
+          can delete records after a decline.
         </p>
       </div>
       {msg && <div className="alert alert-error">{msg}</div>}
-
-      {fundBlock && (
-        <div className="card alert alert-error fund-block-modal">
-          <p><strong>Cannot send fund.</strong> {fundBlock.reason}</p>
-          <p className="cell-muted">
-            Student already received funds for &ldquo;{fundBlock.prior?.scholarshipTitle}&rdquo;.
-            A notification has been sent to the student.
-          </p>
-          <div className="form-actions">
-            <button type="button" className="btn btn-danger" onClick={handleDeleteBlocked}>
-              Delete this application
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                allowStudentReapply(fundBlock.app.studentId, user.name);
-                setFundBlock(null);
-                setMsg('Student may apply again. You can send funds after they select a new award.');
-              }}
-            >
-              Allow student to apply again
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setFundBlock(null)}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       {apps.length === 0 ? (
         <div className="card empty-state">
@@ -152,66 +87,81 @@ export default function AdminApplications() {
               {apps.map((a) => {
                 const student = getStudent(a.studentId);
                 const bankOk = student?.bankAccount?.accountNumber;
-                const alreadyFunded = studentHasReceivedFund(
-                  allApplications,
-                  a.studentId,
-                  getStudent(a.studentId),
-                  fundRecords
-                );
+                const identity = getIdentityVerificationSummary(student, documents);
+                const declined = isDeclinedByAdmin(a);
+
                 return (
-                    <tr key={a.id}>
-                      <td>
-                        <span className="cell-primary">{a.studentName}</span>
-                        <span className="cell-secondary">{a.studentEmail}</span>
-                        {!bankOk && <span className="fraud-flag">No bank details</span>}
-                        {alreadyFunded && (
-                          <span className="fraud-flag">Prior fund received</span>
-                        )}
-                      </td>
-                      <td>{a.scholarshipTitle}</td>
-                      <td><StatusBadge status={a.status} /></td>
-                      <td>
-                        {a.selectedForAward ? (
-                          <StatusBadge status="approved" label="Selected" />
-                        ) : a.awardDeclined ? (
-                          <span className="cell-muted">Not selected</span>
-                        ) : (
-                          <span className="cell-muted">—</span>
-                        )}
-                      </td>
-                      <td>{fundLabel(a)}</td>
-                      <td className="actions-cell">
-                        {canAdminDecide(a) && (
-                          <>
-                            <button type="button" className="btn btn-sm btn-primary" onClick={() => handleDecision(a, 'approved')}>
-                              Approve
-                            </button>
-                            <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDecision(a, 'rejected')}>
-                              Decline
-                            </button>
-                          </>
-                        )}
-                        {isFinalized(a) && !a.fundStatus && a.selectedForAward && a.status === 'approved' && (
-                          <span className="cell-muted">Awaiting fund send</span>
-                        )}
-                        {canSendFund(a) && (
-                          <button type="button" className="btn btn-sm btn-primary" onClick={() => handleSendFund(a)}>
-                            Send fund
+                  <tr key={a.id}>
+                    <td>
+                      <span className="cell-primary">{a.studentName}</span>
+                      <span className="cell-secondary">{a.studentEmail}</span>
+                      {!bankOk && <span className="fraud-flag">No bank details</span>}
+                      {identity.readyForAdmin ? (
+                        <span className="identity-flag identity-flag--ok">
+                          Identity verified
+                          {identity.institutionName ? ` by ${identity.institutionName}` : ''}
+                        </span>
+                      ) : (
+                        <span className="fraud-flag">Identity not verified by institution</span>
+                      )}
+                    </td>
+                    <td>{a.scholarshipTitle}</td>
+                    <td><StatusBadge status={a.status} /></td>
+                    <td>
+                      {a.selectedForAward ? (
+                        <StatusBadge status="approved" label="Selected" />
+                      ) : a.awardDeclined ? (
+                        <span className="cell-muted">Not selected</span>
+                      ) : (
+                        <span className="cell-muted">—</span>
+                      )}
+                    </td>
+                    <td>{fundLabel(a)}</td>
+                    <td className="actions-cell">
+                      {canAdminDecide(a) && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleDecision(a, 'approved')}
+                          >
+                            Approve
                           </button>
-                        )}
-                        {canStaffDeleteApplication(a) && (
                           <button
                             type="button"
                             className="btn btn-sm btn-danger"
-                            onClick={() => {
-                              if (window.confirm('Remove this application from the system?')) deleteApplication(a.id);
-                            }}
+                            onClick={() => handleDecision(a, 'rejected')}
                           >
-                            Delete
+                            Decline
                           </button>
-                        )}
-                      </td>
-                    </tr>
+                        </>
+                      )}
+                      {declined && (
+                        <span className="cell-muted">Declined — removable by student or institution</span>
+                      )}
+                      {isFinalized(a) && !a.fundStatus && a.selectedForAward && a.status === 'approved' && (
+                        <span className="cell-muted">Awaiting fund send</span>
+                      )}
+                      {canSendFund(a) && (
+                        <button type="button" className="btn btn-sm btn-primary" onClick={() => sendFund(a.id)}>
+                          Send fund
+                        </button>
+                      )}
+                      {canStaffDeleteApplication(a) && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger"
+                          onClick={() => {
+                            if (window.confirm('Remove this application from the system?')) {
+                              deleteApplication(a.id);
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
