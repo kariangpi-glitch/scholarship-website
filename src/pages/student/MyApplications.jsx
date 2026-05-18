@@ -9,7 +9,6 @@ import {
   canWithdraw,
   canStudentDeleteApplication,
   isWithdrawn,
-  isDeclinedByAdmin,
 } from '../../utils/applicationHelpers';
 
 export default function MyApplications() {
@@ -24,12 +23,13 @@ export default function MyApplications() {
   } = useData();
   void tick;
 
-  const allMine = getApplications().filter((a) => a.studentId === user.id);
-  const declined = allMine.filter((a) => isDeclinedByAdmin(a));
-  const apps = allMine.filter((a) => a.status !== 'withdrawn' && !isDeclinedByAdmin(a));
-  const withdrawn = allMine.filter((a) => isWithdrawn(a));
-  const approved = getStudentApprovedApps(allMine, user.id);
-  const needsChoice = studentNeedsAwardSelection(allMine, user.id);
+  const apps = getApplications().filter((a) => a.studentId === user.id && a.status !== 'withdrawn');
+  const withdrawn = getApplications().filter((a) => a.studentId === user.id && isWithdrawn(a));
+  const approved = getStudentApprovedApps(getApplications().filter((a) => a.studentId === user.id), user.id);
+  const needsChoice = studentNeedsAwardSelection(
+    getApplications().filter((a) => a.studentId === user.id),
+    user.id
+  );
   const [showPicker, setShowPicker] = useState(false);
 
   const handleWithdraw = (id) => {
@@ -117,46 +117,9 @@ export default function MyApplications() {
                         Confirm fund received
                       </button>
                     )}
-                    {canStudentDeleteApplication(a) && (isDeclinedByAdmin(a) || a.fundStatus === 'received') && (
+                    {canStudentDeleteApplication(a) && a.fundStatus === 'received' && (
                       <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(a.id)}>
-                        {isDeclinedByAdmin(a) ? 'Delete declined application' : 'Delete'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {declined.length > 0 && (
-        <div className="card declined-apps-card">
-          <h3 className="card-heading">Declined applications</h3>
-          <p className="signup-section-desc">
-            These applications were declined by the administration. You may permanently remove them from your records.
-          </p>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Program</th>
-                <th>Submitted</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {declined.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.scholarshipTitle}</td>
-                  <td>{a.appliedAt}</td>
-                  <td>
-                    <StatusBadge status={a.status} />
-                  </td>
-                  <td className="actions-cell">
-                    {canStudentDeleteApplication(a) && (
-                      <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDelete(a.id)}>
-                        Delete permanently
+                        Delete
                       </button>
                     )}
                   </td>

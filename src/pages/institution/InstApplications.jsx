@@ -8,7 +8,7 @@ import {
   canInstitutionApproveIdentity,
   getIdentityVerificationSummary,
 } from '../../utils/bankHelpers';
-import { canStaffDeleteApplication, isDeclinedByAdmin, isWithdrawn } from '../../utils/applicationHelpers';
+import { canStaffDeleteApplication, isWithdrawn } from '../../utils/applicationHelpers';
 
 export default function InstApplications() {
   const { user } = useAuth();
@@ -58,18 +58,20 @@ export default function InstApplications() {
       setIdentityMsg(result.reason);
       return;
     }
-    setIdentityMsg(`Identity verified for ${student?.name || 'student'}. Administration can now approve their application.`);
+    setIdentityMsg(
+      `Identity verified for ${student?.name || 'student'}. Administration can now approve their application.`
+    );
   };
 
   const verifyAndForward = (app) => {
     const student = getStudent(app.studentId);
     const docs = getStudentDocs(app.studentId);
-    const allVerified = docs.length > 0 && docs.every((d) => d.verified);
     const identity = getIdentityVerificationSummary(student, allDocs);
     if (!identity.readyForAdmin) {
       setIdentityMsg('Approve student identity (passport / photo ID) before forwarding to administration.');
       return;
     }
+    const allVerified = docs.length > 0 && docs.every((d) => d.verified);
     if (!allVerified) {
       setIdentityMsg('Verify all uploaded documents before forwarding.');
       return;
@@ -87,13 +89,14 @@ export default function InstApplications() {
       <div className="page-intro">
         <h2 className="page-title">Application Review</h2>
         <p className="page-subtitle">
-          Verify applicant identity and documents, then forward complete applications to the administration
-          for final decision.
+          Verify student identity and documents, then forward complete applications to the administration.
         </p>
       </div>
 
       {identityMsg && (
-        <div className={`alert ${identityMsg.includes('can now') ? 'alert-success' : 'alert-error'}`}>
+        <div
+          className={`alert ${identityMsg.includes('Administration') ? 'alert-success' : 'alert-error'}`}
+        >
           {identityMsg}
         </div>
       )}
@@ -126,7 +129,6 @@ export default function InstApplications() {
                 const canForward = allVerified && a.status === 'institution-review' && !isForwarded;
                 const identity = getIdentityVerificationSummary(student, allDocs);
                 const canApproveIdentity = canInstitutionApproveIdentity(student, allDocs).ok;
-                const declined = isDeclinedByAdmin(a);
 
                 return (
                   <tr key={a.id}>
@@ -157,7 +159,7 @@ export default function InstApplications() {
                               className="btn btn-sm btn-primary identity-cell__btn"
                               onClick={() => handleApproveIdentity(a.studentId)}
                             >
-                              Approve identity
+                              Verify identity
                             </button>
                           )}
                         </>
@@ -219,44 +221,35 @@ export default function InstApplications() {
                       {a.fundStatus === 'received' && <StatusBadge status="fund-received" />}
                     </td>
                     <td className="actions-cell">
-                      {declined && (
-                        <p className="actions-cell__hint">Declined by administration — you may remove this record.</p>
-                      )}
-                      {canStaffDeleteApplication(a) && (
+                      {(canStaffDeleteApplication(a) || a.institutionStatus === 'verified' || a.forwardedToAdmin) && (
                         <button
                           type="button"
                           className="btn btn-sm btn-danger"
                           onClick={() => {
-                            if (window.confirm('Permanently delete this application record?')) {
-                              deleteApplication(a.id);
-                            }
+                            if (window.confirm('Delete this application record?')) deleteApplication(a.id);
                           }}
                         >
                           Delete
                         </button>
                       )}
                       {isForwarded ? (
-                        declined ? null : (
-                          <span className="cell-muted">Forwarded to administration</span>
-                        )
+                        <span className="cell-muted">Forwarded to administration</span>
                       ) : (
-                        !declined && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            disabled={!canForward}
-                            title={
-                              !identity.readyForAdmin
-                                ? 'Approve student identity first'
-                                : !allVerified
-                                  ? 'Verify all documents before forwarding'
-                                  : 'Submit to administration for final review'
-                            }
-                            onClick={() => verifyAndForward(a)}
-                          >
-                            Forward to Admin
-                          </button>
-                        )
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          disabled={!canForward}
+                          title={
+                            !identity.readyForAdmin
+                              ? 'Verify student identity first'
+                              : !allVerified
+                                ? 'Verify all documents before forwarding'
+                                : 'Submit to administration for final review'
+                          }
+                          onClick={() => verifyAndForward(a)}
+                        >
+                          Forward to Admin
+                        </button>
                       )}
                     </td>
                   </tr>

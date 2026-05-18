@@ -21,10 +21,6 @@ export function isFinalized(app) {
   return app.status === 'approved' || app.status === 'rejected' || app.status === 'declined';
 }
 
-export function isDeclinedByAdmin(app) {
-  return app.status === 'rejected' || app.status === 'declined';
-}
-
 export function isWithdrawn(app) {
   return app.status === 'withdrawn';
 }
@@ -36,13 +32,11 @@ export function canWithdraw(app) {
 }
 
 export function canStudentDeleteApplication(app) {
-  if (isDeclinedByAdmin(app) && !app.fundStatus) return true;
   return isWithdrawn(app) || canDeleteAfterFund(app);
 }
 
 export function canStaffDeleteApplication(app) {
   if (app.fundStatus === 'received') return true;
-  if (isDeclinedByAdmin(app) && !app.fundStatus) return true;
   if (isWithdrawn(app)) return true;
   if (app.forwardedToAdmin || app.institutionStatus === 'verified') return true;
   if (isFinalized(app)) return true;
@@ -65,7 +59,7 @@ export function canApproveApplication(app, student, documents) {
     return {
       ok: false,
       reason:
-        'Student identity is not verified. The institution must approve the passport / photo ID before you can approve.',
+        'Student identity is not verified. The institution must verify the passport / photo ID before you can approve.',
     };
   }
   return { ok: true };

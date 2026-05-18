@@ -95,7 +95,7 @@ export function getIdentityVerificationSummary(user, documents) {
 export function canInstitutionApproveIdentity(user, documents) {
   const summary = getIdentityVerificationSummary(user, documents);
   if (!summary.hasUpload) {
-    return { ok: false, reason: 'Student has not uploaded a Passport / photo ID document yet.' };
+    return { ok: false, reason: 'Student has not uploaded a Passport / photo ID yet.' };
   }
   if (summary.readyForAdmin) {
     return { ok: false, reason: 'Student identity is already verified.' };

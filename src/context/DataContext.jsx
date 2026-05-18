@@ -1,5 +1,8 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { KEYS, getItem, setItem } from '../utils/storage';
+import { syncFundDataFromStorage } from '../utils/fundHelpers';
+import { stripPassword } from '../utils/userHelpers';
+import { applicationStatusMessage, fundStatusMessage } from '../utils/notificationHelpers';
 
 const DataContext = createContext(null);
 
@@ -11,15 +14,77 @@ export function DataProvider({ children }) {
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
+  useEffect(() => {
+    syncFundDataFromStorage({ KEYS, getItem, setItem, uid });
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key?.startsWith('sh_')) refresh();
+    };
+    const onLocalChange = () => refresh();
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('sh-data-changed', onLocalChange);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('sh-data-changed', onLocalChange);
+    };
+  }, [refresh]);
+
+  const emitDataChange = () => {
+    refresh();
+    window.dispatchEvent(new Event('sh-data-changed'));
+  };
+
   const getScholarships = () => getItem(KEYS.scholarships, []);
   const getApplications = () => getItem(KEYS.applications, []);
   const getDocuments = () => getItem(KEYS.documents, []);
   const getAnnouncements = () => getItem(KEYS.announcements, []);
+  const getNotifications = () => getItem(KEYS.notifications, []);
+  const getFundRecords = () => getItem(KEYS.fundRecords, []);
 
-  const saveScholarships = (data) => { setItem(KEYS.scholarships, data); refresh(); };
-  const saveApplications = (data) => { setItem(KEYS.applications, data); refresh(); };
-  const saveDocuments = (data) => { setItem(KEYS.documents, data); refresh(); };
-  const saveAnnouncements = (data) => { setItem(KEYS.announcements, data); refresh(); };
+  const saveScholarships = (data) => { setItem(KEYS.scholarships, data); emitDataChange(); };
+  const saveApplications = (data) => { setItem(KEYS.applications, data); emitDataChange(); };
+  const saveDocuments = (data) => { setItem(KEYS.documents, data); emitDataChange(); };
+  const saveAnnouncements = (data) => { setItem(KEYS.announcements, data); emitDataChange(); };
+  const saveNotifications = (data) => { setItem(KEYS.notifications, data); emitDataChange(); };
+
+  const addNotification = ({ userId, type = 'info', title, message, applicationId = null }) => {
+    if (!userId || !title) return;
+    const list = getNotifications();
+    list.unshift({
+      id: uid('notif'),
+      userId,
+      type,
+      title,
+      message: message || '',
+      applicationId,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
+    saveNotifications(list);
+  };
+
+  const getUnreadNotificationCount = (userId) =>
+    getNotifications().filter((n) => n.userId === userId && !n.read).length;
+
+  const markNotificationRead = (id) => {
+    saveNotifications(getNotifications().map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+
+  const markAllNotificationsRead = (userId) => {
+    saveNotifications(
+      getNotifications().map((n) => (n.userId === userId ? { ...n, read: true } : n))
+    );
+  };
+
+  const deleteNotification = (id) => {
+    saveNotifications(getNotifications().filter((n) => n.id !== id));
+  };
+
+  const deleteAllNotifications = (userId) => {
+    saveNotifications(getNotifications().filter((n) => n.userId !== userId));
+  };
 
   const addScholarship = (sch, { institutionRequest = false } = {}) => {
     const list = getScholarships();
@@ -51,7 +116,47 @@ export function DataProvider({ children }) {
   };
 
   const updateApplication = (id, updates) => {
-    saveApplications(getApplications().map((a) => (a.id === id ? { ...a, ...updates } : a)));
+    const apps = getApplications();
+    const prev = apps.find((a) => a.id === id);
+    if (!prev) return;
+    const next = { ...prev, ...updates };
+    saveApplications(apps.map((a) => (a.id === id ? next : a)));
+
+    if (prev.studentId) {
+      const forwardedNow = updates.forwardedToAdmin && !prev.forwardedToAdmin;
+      if (forwardedNow) {
+        const { title, message } = applicationStatusMessage(next, 'pending');
+        addNotification({
+          userId: prev.studentId,
+          type: 'info',
+          title,
+          message,
+          applicationId: id,
+        });
+      } else if (updates.status && updates.status !== prev.status) {
+        const { title, message } = applicationStatusMessage(next, updates.status);
+        addNotification({
+          userId: prev.studentId,
+          type: updates.status === 'approved' ? 'success' : updates.status === 'rejected' ? 'warning' : 'info',
+          title,
+          message,
+          applicationId: id,
+        });
+      }
+
+      if (updates.fundStatus && updates.fundStatus !== prev.fundStatus) {
+        const fundMsg = fundStatusMessage(next, updates.fundStatus);
+        if (fundMsg) {
+          addNotification({
+            userId: prev.studentId,
+            type: 'success',
+            title: fundMsg.title,
+            message: fundMsg.message,
+            applicationId: id,
+          });
+        }
+      }
+    }
   };
 
   const deleteApplication = (id) => {
@@ -81,7 +186,21 @@ export function DataProvider({ children }) {
   };
 
   const updateDocument = (id, updates) => {
-    saveDocuments(getDocuments().map((d) => (d.id === id ? { ...d, ...updates } : d)));
+    const docs = getDocuments();
+    const prev = docs.find((d) => d.id === id);
+    const next = prev ? { ...prev, ...updates } : null;
+    saveDocuments(docs.map((d) => (d.id === id ? next : d)));
+
+    if (prev?.studentId && updates.verified && !prev.verified) {
+      const docLabel = prev.type === 'identity-passport' ? 'Passport / photo ID' : prev.name || 'document';
+      addNotification({
+        userId: prev.studentId,
+        type: 'success',
+        title: 'Document verified',
+        message: `Your institution verified your ${docLabel}.`,
+        applicationId: prev.applicationId || null,
+      });
+    }
   };
 
   const deleteDocument = (id) => {
@@ -93,17 +212,14 @@ export function DataProvider({ children }) {
     const passportIds = docs
       .filter((d) => d.studentId === studentId && d.type === 'identity-passport')
       .map((d) => d.id);
-    if (passportIds.length === 0) return { ok: false, reason: 'No passport / photo ID on file.' };
+    if (passportIds.length === 0) {
+      return { ok: false, reason: 'No passport / photo ID on file for this student.' };
+    }
 
     saveDocuments(
       docs.map((d) =>
         passportIds.includes(d.id)
-          ? {
-              ...d,
-              verified: true,
-              verifiedBy: institution.id,
-              identityApprovedByInstitution: true,
-            }
+          ? { ...d, verified: true, verifiedBy: institution.id }
           : d
       )
     );
@@ -111,6 +227,7 @@ export function DataProvider({ children }) {
     const users = getItem(KEYS.users, []);
     const idx = users.findIndex((u) => u.id === studentId);
     if (idx === -1) return { ok: false, reason: 'Student not found.' };
+
     const verifiedAt = new Date().toISOString().split('T')[0];
     users[idx] = {
       ...users[idx],
@@ -123,21 +240,39 @@ export function DataProvider({ children }) {
 
     const session = getItem(KEYS.session);
     if (session?.id === studentId) {
-      setItem(KEYS.session, { ...session, ...users[idx] });
+      setItem(KEYS.session, stripPassword(users[idx]));
     }
 
-    refresh();
+    const student = users[idx];
+    addNotification({
+      userId: studentId,
+      type: 'success',
+      title: 'Identity verified',
+      message: `${institution.name || 'Your institution'} verified your passport / photo ID. Your application can proceed to administration.`,
+    });
+
+    emitDataChange();
     return { ok: true };
   };
 
   const selectAward = (studentId, applicationId) => {
     const list = getApplications();
+    const selected = list.find((a) => a.id === applicationId);
     const updated = list.map((a) => {
       if (a.studentId !== studentId || a.status !== 'approved') return a;
       if (a.id === applicationId) return { ...a, selectedForAward: true, awardDeclined: false };
       return { ...a, selectedForAward: false, awardDeclined: true };
     });
     saveApplications(updated);
+    if (selected) {
+      addNotification({
+        userId: studentId,
+        type: 'success',
+        title: 'Award selected',
+        message: `You selected "${selected.scholarshipTitle}" as your scholarship award.`,
+        applicationId,
+      });
+    }
   };
 
   const sendFund = (applicationId) => {
@@ -170,6 +305,13 @@ export function DataProvider({ children }) {
     getApplications,
     getDocuments,
     getAnnouncements,
+    getNotifications,
+    getFundRecords,
+    getUnreadNotificationCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+    deleteNotification,
+    deleteAllNotifications,
     addScholarship,
     updateScholarship,
     approveScholarship,
@@ -187,6 +329,7 @@ export function DataProvider({ children }) {
     markFundReceived,
     addAnnouncement,
     deleteAnnouncement,
+    addNotification,
     refresh,
   };
 

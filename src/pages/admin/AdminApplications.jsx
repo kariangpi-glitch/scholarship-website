@@ -6,7 +6,6 @@ import {
   filterApplicationsForAdmin,
   canAdminDecide,
   isFinalized,
-  isDeclinedByAdmin,
   canApproveApplication,
   canSendFund,
   canStaffDeleteApplication,
@@ -60,8 +59,7 @@ export default function AdminApplications() {
       <div className="page-intro">
         <h2 className="page-title">Application review</h2>
         <p className="page-subtitle">
-          Approve when bank details and institution-verified identity are on file. Students and institutions
-          can delete records after a decline.
+          Approve only when bank details and institution-verified identity are on file. Send funds after the student selects one award.
         </p>
       </div>
       {msg && <div className="alert alert-error">{msg}</div>}
@@ -88,8 +86,6 @@ export default function AdminApplications() {
                 const student = getStudent(a.studentId);
                 const bankOk = student?.bankAccount?.accountNumber;
                 const identity = getIdentityVerificationSummary(student, documents);
-                const declined = isDeclinedByAdmin(a);
-
                 return (
                   <tr key={a.id}>
                     <td>
@@ -120,24 +116,13 @@ export default function AdminApplications() {
                     <td className="actions-cell">
                       {canAdminDecide(a) && (
                         <>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handleDecision(a, 'approved')}
-                          >
+                          <button type="button" className="btn btn-sm btn-primary" onClick={() => handleDecision(a, 'approved')}>
                             Approve
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleDecision(a, 'rejected')}
-                          >
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => handleDecision(a, 'rejected')}>
                             Decline
                           </button>
                         </>
-                      )}
-                      {declined && (
-                        <span className="cell-muted">Declined — removable by student or institution</span>
                       )}
                       {isFinalized(a) && !a.fundStatus && a.selectedForAward && a.status === 'approved' && (
                         <span className="cell-muted">Awaiting fund send</span>
@@ -152,9 +137,7 @@ export default function AdminApplications() {
                           type="button"
                           className="btn btn-sm btn-danger"
                           onClick={() => {
-                            if (window.confirm('Remove this application from the system?')) {
-                              deleteApplication(a.id);
-                            }
+                            if (window.confirm('Remove this application from the system?')) deleteApplication(a.id);
                           }}
                         >
                           Delete

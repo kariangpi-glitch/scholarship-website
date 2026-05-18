@@ -9,19 +9,25 @@ export default function DocumentViewer({ doc, onClose }) {
       </div>
     );
   }
+
   const isPdf = doc.mimeType === 'application/pdf';
   const isImage = doc.mimeType?.startsWith('image/');
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{doc.name || doc.fileName || 'Document'}</h3>
-          <button type="button" className="modal-close" onClick={onClose}>×</button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="modal-body doc-viewer">
           {isImage && <img src={doc.fileData} alt={doc.name} className="doc-viewer__img" />}
           {isPdf && <iframe title={doc.name} src={doc.fileData} className="doc-viewer__iframe" />}
-          {!isImage && !isPdf && <p className="empty-text">Preview not available. <a href={doc.fileData} download={doc.name}>Download</a></p>}
+          {!isImage && !isPdf && (
+            <p className="empty-text">
+              Preview not available. <a href={doc.fileData} download={doc.name}>Download file</a>
+            </p>
+          )}
         </div>
         <div className="modal-footer">
           <a href={doc.fileData} download={doc.name || 'document'} className="btn btn-secondary">Download</a>
