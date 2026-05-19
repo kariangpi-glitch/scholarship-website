@@ -1,6 +1,10 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { KEYS, getItem, setItem } from '../utils/storage';
-import { syncFundDataFromStorage } from '../utils/fundHelpers';
+import {
+  buildFundRecordFromApplication,
+  studentHasReceivedScholarshipFund,
+  syncFundDataFromStorage,
+} from '../utils/fundHelpers';
 import { stripPassword } from '../utils/userHelpers';
 import { applicationStatusMessage, fundStatusMessage } from '../utils/notificationHelpers';
 
@@ -48,6 +52,8 @@ export function DataProvider({ children }) {
   const saveDocuments = (data) => { setItem(KEYS.documents, data); emitDataChange(); };
   const saveAnnouncements = (data) => { setItem(KEYS.announcements, data); emitDataChange(); };
   const saveNotifications = (data) => { setItem(KEYS.notifications, data); emitDataChange(); };
+  const saveFundRecords = (data) => { setItem(KEYS.fundRecords, data); emitDataChange(); };
+  const saveUsers = (data) => { setItem(KEYS.users, data); emitDataChange(); };
 
   const addNotification = ({ userId, type = 'info', title, message, applicationId = null }) => {
     if (!userId || !title) return;
@@ -283,9 +289,129 @@ export function DataProvider({ children }) {
   };
 
   const markFundReceived = (applicationId) => {
+    const apps = getApplications();
+    const prev = apps.find((a) => a.id === applicationId);
+    if (!prev) return;
+
+    const fundReceivedAt = new Date().toISOString().split('T')[0];
     updateApplication(applicationId, {
       fundStatus: 'received',
-      fundReceivedAt: new Date().toISOString().split('T')[0],
+      fundReceivedAt,
+    });
+
+    const users = getItem(KEYS.users, []);
+    const studentIdx = users.findIndex((u) => u.id === prev.studentId);
+    const scholarship = getScholarships().find((s) => s.id === prev.scholarshipId);
+    const receivedApp = {
+      ...prev,
+      fundStatus: 'received',
+      fundReceivedAt,
+    };
+
+    if (studentIdx !== -1) {
+      users[studentIdx] = {
+        ...users[studentIdx],
+        hasReceivedScholarshipFund: true,
+        scholarshipReapplyAllowed: false,
+        scholarshipFundReceivedAt: fundReceivedAt,
+        lastReceivedScholarshipTitle: prev.scholarshipTitle,
+        lastReceivedScholarshipAmount: scholarship?.amount ?? null,
+      };
+      setItem(KEYS.users, users);
+
+      const session = getItem(KEYS.session);
+      if (session?.id === prev.studentId) {
+        setItem(KEYS.session, stripPassword(users[studentIdx]));
+      }
+    }
+
+    const fundRecords = getFundRecords();
+    if (!fundRecords.some((r) => r.applicationId === applicationId)) {
+      const student = studentIdx !== -1 ? users[studentIdx] : null;
+      saveFundRecords([
+        {
+          id: uid('fund'),
+          ...buildFundRecordFromApplication(receivedApp, scholarship, student),
+          recordedAt: fundReceivedAt,
+        },
+        ...fundRecords,
+      ]);
+    } else {
+      emitDataChange();
+    }
+  };
+
+  const allowStudentReapply = (studentId, adminName) => {
+    const users = getItem(KEYS.users, []);
+    const idx = users.findIndex((u) => u.id === studentId);
+    if (idx === -1) return;
+
+    users[idx] = {
+      ...users[idx],
+      scholarshipReapplyAllowed: true,
+      scholarshipReapplyAllowedAt: new Date().toISOString().split('T')[0],
+      scholarshipReapplyAllowedBy: adminName || 'Administrator',
+    };
+    setItem(KEYS.users, users);
+
+    const session = getItem(KEYS.session);
+    if (session?.id === studentId) {
+      setItem(KEYS.session, stripPassword(users[idx]));
+    }
+
+    addNotification({
+      userId: studentId,
+      type: 'success',
+      title: 'You may apply again',
+      message:
+        'The administration has allowed you to apply for new scholarship programs.',
+    });
+
+    emitDataChange();
+  };
+
+  const resetAllStudentsEligibility = (adminName) => {
+    const users = getItem(KEYS.users, []);
+    const applications = getApplications();
+    const fundRecords = getFundRecords();
+    const allowedAt = new Date().toISOString().split('T')[0];
+    const allowedBy = adminName || 'Administrator';
+    const toNotify = [];
+
+    const updated = users.map((u) => {
+      if (u.role !== 'student') return u;
+      const received = studentHasReceivedScholarshipFund(
+        u,
+        fundRecords,
+        applications,
+        u.id
+      );
+      if (!received || u.scholarshipReapplyAllowed === true) return u;
+      toNotify.push(u.id);
+      return {
+        ...u,
+        scholarshipReapplyAllowed: true,
+        scholarshipReapplyAllowedAt: allowedAt,
+        scholarshipReapplyAllowedBy: allowedBy,
+      };
+    });
+
+    saveUsers(updated);
+
+    const session = getItem(KEYS.session);
+    if (session?.id) {
+      const refreshed = updated.find((u) => u.id === session.id);
+      if (refreshed) setItem(KEYS.session, stripPassword(refreshed));
+    }
+
+    toNotify.forEach((studentId) => {
+      addNotification({
+        userId: studentId,
+        type: 'success',
+        title: 'You may apply again',
+        message:
+          'The administration has opened a new scholarship cycle. You may apply for new programs.',
+      });
     });
   };
 
@@ -327,6 +453,8 @@ export function DataProvider({ children }) {
     selectAward,
     sendFund,
     markFundReceived,
+    allowStudentReapply,
+    resetAllStudentsEligibility,
     addAnnouncement,
     deleteAnnouncement,
     addNotification,

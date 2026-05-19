@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 
 const ROLES = [
   { id: 'student', label: 'Student', icon: '👨‍🎓', desc: 'Apply for scholarships' },
+  { id: 'institution', label: 'Department', icon: '🏛️', desc: 'Verify & forward applications' },
   { id: 'admin', label: 'Administrator', icon: '👩‍💼', desc: 'Manage programs & decisions' },
-  { id: 'institution', label: 'Institution', icon: '🏛️', desc: 'Verify & forward applications' },
 ];
 
 const DEMO = {
@@ -103,8 +103,8 @@ export default function Login() {
         <div className="demo-hint">
           <p className="demo-hint__title">Demonstration accounts</p>
           <p>Student — student@gmail.com / 1234</p>
+          <p>Department — institution@gmail.com / 1234</p>
           <p>Administrator — admin@gmail.com / 1234</p>
-          <p>Institution — institution@gmail.com / 1234</p>
         </div>
       </div>
     </div>
