@@ -5,8 +5,8 @@ import { readFileAsDataUrl } from '../utils/fileUtils';
 
 const ROLES = [
   { id: 'student', label: 'Student', icon: '👨‍🎓' },
+  { id: 'institution', label: 'Department', icon: '🏛️' },
   { id: 'admin', label: 'Administrator', icon: '👩‍💼' },
-  { id: 'institution', label: 'Institution', icon: '🏛️' },
 ];
 
 const EMPTY = {
@@ -66,7 +66,7 @@ export default function SignUp() {
         return;
       }
       if (role === 'institution' && (!form.contactPerson || !form.address)) {
-        setError('Institution contact person and address are required.');
+        setError('Department contact person and address are required.');
         return;
       }
     }
@@ -127,7 +127,7 @@ export default function SignUp() {
           <div className="alert alert-info signup-notice">
             {role === 'admin'
               ? 'Administrator accounts require identity verification before access is granted.'
-              : 'Institution accounts must submit proof of affiliation. An administrator will review your documents.'}
+              : 'Department accounts must submit proof of affiliation. An administrator will review your documents.'}
           </div>
         )}
 
@@ -248,9 +248,9 @@ export default function SignUp() {
 
           {role === 'institution' && (
             <>
-              <h3 className="signup-section-title">Institution details</h3>
+              <h3 className="signup-section-title">Department details</h3>
               <div className="form-group">
-                <label htmlFor="name">Institution name *</label>
+                <label htmlFor="name">Department name *</label>
                 <input id="name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
               </div>
               <div className="form-row">
@@ -275,7 +275,7 @@ export default function SignUp() {
             <>
               <h3 className="signup-section-title">Identity verification</h3>
               <p className="signup-section-desc">
-                Upload a document that confirms your authority to act as a {role === 'admin' ? 'platform administrator' : 'registered institution'}.
+                Upload a document that confirms your authority to act as a {role === 'admin' ? 'platform administrator' : 'registered department'}.
               </p>
               <div className="form-group">
                 <label htmlFor="idProofFile">Upload ID proof *</label>
