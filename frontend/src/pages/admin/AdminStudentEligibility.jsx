@@ -18,10 +18,11 @@ export default function AdminStudentEligibility() {
   const [msg, setMsg] = useState('');
   const applications = getApplications();
   const fundRecords = getFundRecords();
+  const blockedFundRecords = fundRecords.filter((r) => r.reapplyAllowed !== true);
   const students = getItem(KEYS.users, []).filter((u) => u.role === 'student');
 
   const blockedStudents = students.filter((s) =>
-    studentIsBlockedFromApplying(s, fundRecords, applications)
+    studentIsBlockedFromApplying(s,blockedFundRecords, applications)
   );
 
   const allowedAgain = students.filter(
@@ -59,7 +60,7 @@ export default function AdminStudentEligibility() {
         <p className="signup-section-desc">
           Permanent record of students who received scholarship funds. Not removed when programs are deleted.
         </p>
-        {fundRecords.length === 0 ? (
+        {blockedFundRecords.length === 0 ? (
           <p className="empty-text">No fund disbursements recorded yet.</p>
         ) : (
           <div className="table-wrap">
@@ -75,7 +76,7 @@ export default function AdminStudentEligibility() {
                 </tr>
               </thead>
               <tbody>
-                {fundRecords.map((r) => (
+                {blockedFundRecords.map((r) => (
                   <tr key={r.id}>
                     <td>
                       <span className="cell-primary">{r.studentName}</span>
@@ -105,45 +106,54 @@ export default function AdminStudentEligibility() {
       </div>
 
       <div className="card" style={{ marginTop: '1.25rem' }}>
-        <h3 className="card-heading">Blocked from applying</h3>
-        {blockedStudents.length === 0 ? (
-          <p className="empty-text">No students are currently blocked.</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Email</th>
-                <th>Last program</th>
-                <th>Fund received</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {blockedStudents.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.name}</td>
-                  <td>{s.email}</td>
-                  <td>{s.lastReceivedScholarshipTitle || '—'}</td>
-                  <td>{s.scholarshipFundReceivedAt || '—'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        allowStudentReapply(s.id, user.name);
-                        setMsg(`${s.name} may apply for new scholarships.`);
-                      }}
-                    >
-                      Allow to apply again
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+  <h3 className="card-heading">Blocked from applying</h3>
+
+  {fundRecords.filter((r) => r.reapplyAllowed !== true).length === 0 ? (
+    <p className="empty-text">No students are currently blocked.</p>
+  ) : (
+    <table className="data-table">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Email</th>
+          <th>Last program</th>
+          <th>Fund received</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+      {fundRecords
+  .filter((r) => r.reapplyAllowed !== true)
+  .map((r) => ( 
+          <tr key={r.id}>
+            <td>{r.studentName}</td>
+
+            <td>{r.studentEmail}</td>
+
+            <td>{r.scholarshipTitle || '—'}</td>
+
+            <td>{r.fundReceivedAt || '—'}</td>
+
+            <td>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={() => {
+                  allowStudentReapply(r.studentId, user.name);
+
+                  setMsg(`${r.studentName} may apply again.`);
+                }}
+              >
+                Allow to apply again
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</div>
 
       {allowedAgain.length > 0 && (
         <div className="card" style={{ marginTop: '1.25rem' }}>

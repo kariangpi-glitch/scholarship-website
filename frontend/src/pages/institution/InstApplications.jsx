@@ -67,10 +67,7 @@ export default function InstApplications() {
     const student = getStudent(app.studentId);
     const docs = getStudentDocs(app.studentId);
     const identity = getIdentityVerificationSummary(student, allDocs);
-    if (!identity.readyForAdmin) {
-      setIdentityMsg('Approve student identity (passport / photo ID) before forwarding to administration.');
-      return;
-    }
+    
     const allVerified = docs.length > 0 && docs.every((d) => d.verified);
     if (!allVerified) {
       setIdentityMsg('Verify all uploaded documents before forwarding.');

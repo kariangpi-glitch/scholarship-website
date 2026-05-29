@@ -64,7 +64,7 @@ export default function ApplyScholarship() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (existing) {
       setMessage('You have already applied for this scholarship.');
@@ -81,7 +81,7 @@ export default function ApplyScholarship() {
 
     setSubmitting(true);
 
-    const applicationId = addApplication({
+    const applicationId = await addApplication({
       scholarshipId: scholarship.id,
       scholarshipTitle: scholarship.title,
       studentId: user.id,
@@ -94,7 +94,10 @@ export default function ApplyScholarship() {
       notes: '',
       remarks: [],
     });
-
+    if (!applicationId) {
+      setSubmitting(false);
+      return;
+    }
     eligibilityDocs.forEach((doc) => {
       addDocument({
         studentId: user.id,

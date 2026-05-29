@@ -29,9 +29,9 @@ export default function Login() {
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = login(email, password, role);
+    const result = await login(email, password, role);
     if (result.success) {
       navigate(result.pending ? '/pending-verification' : `/${role}`);
     } else {

@@ -1,16 +1,61 @@
-# React + Vite
+# ScholarshipHub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Scholarships and Free-ships Management — a full-stack-style React app with role-based demo login and localStorage persistence (no backend required).
 
-Currently, two official plugins are available:
+## Tech stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19 + Vite
+- React Router
+- Plain CSS (responsive layout)
 
-## React Compiler
+## Getting started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cd scholarship-hub
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Open the URL shown in the terminal (usually http://localhost:5173).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Demo accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Student | student@gmail.com | 1234 |
+| Admin | admin@gmail.com | 1234 |
+| Institution | institution@gmail.com | 1234 |
+
+## Features
+
+### Student
+- Dashboard (applications, pending, approved)
+- Browse and apply for scholarships
+- Upload documents
+- Track application status
+- Profile
+
+### Admin
+- Dashboard (active scholarships, pending reviews, approvals)
+- Create, edit, delete scholarships
+- Approve or reject applications
+- Post announcements
+- Profile
+
+### Institution
+- Dashboard
+- Review applications and forward to admin
+- Verify student documents
+- Manage institution scholarships
+- Profile
+
+## Data storage
+
+All data is stored in the browser `localStorage` under keys prefixed with `sh_`. Seed data loads on first visit.
+
+## Build for production
+
+```bash
+npm run build
+npm run preview
+```

@@ -1,20 +1,26 @@
-/** Permanent fund receipt — survives scholarship/application deletion. */
 export function studentHasReceivedScholarshipFund(user, fundRecords, applications, studentId) {
+  if (user?.scholarshipReapplyAllowed === true) return false;
+
   if (user?.hasReceivedScholarshipFund === true) return true;
-  if (fundRecords?.some((r) => r.studentId === studentId)) return true;
+
+  if (fundRecords?.some((r) => r.studentId === studentId && r.reapplyAllowed !== true)) {
+    return true;
+  }
+
   return applications?.some(
     (a) => a.studentId === studentId && a.fundStatus === 'received'
   );
 }
 
 export function studentIsBlockedFromApplying(user, fundRecords, applications) {
-  const received = studentHasReceivedScholarshipFund(
+  if (user?.scholarshipReapplyAllowed === true) return false;
+
+  return studentHasReceivedScholarshipFund(
     user,
     fundRecords,
     applications,
     user.id
   );
-  return received && user?.scholarshipReapplyAllowed !== true;
 }
 
 export function getStudentFundRecords(fundRecords, studentId) {

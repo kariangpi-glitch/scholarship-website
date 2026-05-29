@@ -82,7 +82,7 @@ export default function SignUp() {
       }
     }
 
-    const result = register(payload);
+    const result = await register(payload);
     if (!result.success) {
       setError(result.error);
       return;

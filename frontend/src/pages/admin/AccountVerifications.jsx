@@ -1,21 +1,44 @@
-import { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useEffect, useState } from 'react';
 import StatusBadge from '../../components/StatusBadge';
 import DocumentViewer from '../../components/DocumentViewer';
 
+const API_URL = 'http://127.0.0.1:5050';
+
 export default function AccountVerifications() {
-  const { getPendingAccounts, reviewAccount } = useAuth();
-  const [refresh, setRefresh] = useState(0);
+  const [pending, setPending] = useState([]);
   const [viewProof, setViewProof] = useState(null);
-  void refresh;
 
-  const pending = getPendingAccounts();
+  const loadPendingAccounts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/pending-accounts`);
+      const data = await res.json();
+      setPending(data);
+    } catch (err) {
+      console.error(err);
+      setPending([]);
+    }
+  };
 
-  const handleReview = (userId, approved) => {
+  useEffect(() => {
+    loadPendingAccounts();
+  }, []);
+
+  const handleReview = async (userId, approved) => {
     const action = approved ? 'approve' : 'decline';
-    if (!window.confirm(`Are you sure you want to ${action} this account after reviewing ID proof?`)) return;
-    reviewAccount(userId, approved);
-    setRefresh((r) => r + 1);
+
+    if (!window.confirm(`Are you sure you want to ${action} this account?`)) {
+      return;
+    }
+
+    const url = approved
+      ? `${API_URL}/approve-account/${userId}`
+      : `${API_URL}/reject-account/${userId}`;
+
+    await fetch(url, {
+      method: 'PUT',
+    });
+
+    loadPendingAccounts();
   };
 
   return (
@@ -23,7 +46,7 @@ export default function AccountVerifications() {
       <div className="page-intro">
         <h2 className="page-title">Account verification</h2>
         <p className="page-subtitle">
-          Open and review ID proof documents before approving administrator or institution registrations.
+          Review department and administrator registrations before approving access.
         </p>
       </div>
 
@@ -42,48 +65,72 @@ export default function AccountVerifications() {
                 </div>
                 <StatusBadge status="pending" label="Awaiting review" />
               </div>
+
               <dl className="verification-details">
                 <dt>Account type</dt>
                 <dd className="capitalize">{u.role}</dd>
+
                 <dt>Phone</dt>
                 <dd>{u.phone || '—'}</dd>
+
                 {u.role === 'admin' && (
                   <>
                     <dt>Department</dt>
                     <dd>{u.department || '—'}</dd>
+
                     <dt>Organization</dt>
                     <dd>{u.organization || '—'}</dd>
                   </>
                 )}
+
                 {u.role === 'institution' && (
                   <>
                     <dt>Contact</dt>
-                    <dd>{u.contactPerson || '—'}</dd>
+                    <dd>{u.contact_person || u.contactPerson || '—'}</dd>
+
                     <dt>Address</dt>
                     <dd>{u.address || '—'}</dd>
                   </>
                 )}
-                {u.idProof && (
+
+                 {u.idProof && (
                   <>
-                    <dt>ID proof file</dt>
-                    <dd>{u.idProof.fileName}</dd>
+                    <dt>ID proof</dt>
+                    <dd>Submitted</dd>
                   </>
                 )}
               </dl>
+
               {u.idProof?.fileData && (
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={() => setViewProof({ name: u.idProof.fileName, fileData: u.idProof.fileData, mimeType: u.idProof.mimeType })}
+                  onClick={() =>
+                    setViewProof({
+                      name: u.idProof.fileName,
+                      fileData: u.idProof.fileData,
+                      mimeType: u.idProof.mimeType,
+                    })
+                  }
                 >
                   View ID proof
                 </button>
               )}
+
               <div className="form-actions">
-                <button type="button" className="btn btn-primary" onClick={() => handleReview(u.id, true)}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => handleReview(u.id, true)}
+                >
                   Approve after review
                 </button>
-                <button type="button" className="btn btn-danger" onClick={() => handleReview(u.id, false)}>
+
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => handleReview(u.id, false)}
+                >
                   Decline
                 </button>
               </div>
@@ -91,7 +138,10 @@ export default function AccountVerifications() {
           ))}
         </div>
       )}
-      {viewProof && <DocumentViewer doc={viewProof} onClose={() => setViewProof(null)} />}
+
+      {viewProof && (
+        <DocumentViewer doc={viewProof} onClose={() => setViewProof(null)} />
+      )}
     </div>
   );
 }

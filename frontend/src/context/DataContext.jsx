@@ -16,11 +16,25 @@ function uid(prefix) {
 
 export function DataProvider({ children }) {
   const [tick, setTick] = useState(0);
+  const [mysqlScholarships, setMysqlScholarships] = useState([]);
+  const [mysqlDocuments, setMysqlDocuments] = useState([]);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     syncFundDataFromStorage({ KEYS, getItem, setItem, uid });
   }, []);
+  useEffect(() => {
+    fetch("http://127.0.0.1:5050/scholarships")
+      .then((res) => res.json())
+      .then((data) => setMysqlScholarships(data))
+      .catch((err) => console.log(err));
+  }, []);
+  useEffect(() => {
+    fetch("http://127.0.0.1:5050/documents")
+      .then((res) => res.json())
+      .then((data) => setMysqlDocuments(data))
+      .catch((err) => console.log(err));
+  }, [tick]);
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -40,9 +54,24 @@ export function DataProvider({ children }) {
     window.dispatchEvent(new Event('sh-data-changed'));
   };
 
-  const getScholarships = () => getItem(KEYS.scholarships, []);
+  const getScholarships = () => mysqlScholarships;
   const getApplications = () => getItem(KEYS.applications, []);
-  const getDocuments = () => getItem(KEYS.documents, []);
+  const getDocuments = () =>
+    mysqlDocuments.map((d) => ({
+      id: d.id,
+      studentId: d.student_id,
+      studentName: d.student_name,
+      applicationId: d.application_id,
+      scholarshipId: d.scholarship_id,
+      name: d.name,
+      type: d.type,
+      fileName: d.file_name,
+      fileData: d.file_data,
+      mimeType: d.mime_type,
+      uploadedAt: d.uploaded_at?.split("T")[0] || d.uploaded_at,
+      verified: Boolean(d.verified),
+      verifiedBy: d.verified_by,
+    }));
   const getAnnouncements = () => getItem(KEYS.announcements, []);
   const getNotifications = () => getItem(KEYS.notifications, []);
   const getFundRecords = () => getItem(KEYS.fundRecords, []);
@@ -115,10 +144,42 @@ export function DataProvider({ children }) {
     saveScholarships(getScholarships().filter((s) => s.id !== id));
   };
 
-  const addApplication = (app) => {
-    const list = getApplications();
-    list.push({ ...app, id: uid('app'), appliedAt: new Date().toISOString().split('T')[0], fundStatus: null });
-    saveApplications(list);
+  const addApplication = async (app) => {
+    const newApp = {
+      ...app,
+      id: uid('app'),
+      appliedAt: new Date().toISOString().split('T')[0],
+      fundStatus: null,
+    };
+  
+    console.log("TRYING TO SAVE APPLICATION:", newApp);
+  
+    try {
+      const res = await fetch('http://127.0.0.1:5050/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newApp),
+      });
+  
+      const data = await res.json();
+  
+      console.log("MYSQL APPLICATION RESPONSE:", data);
+  
+      if (!res.ok) {
+        alert("MySQL save failed: " + (data.details || data.error));
+        return null;
+      }
+  
+      const list = getApplications();
+      list.push(newApp);
+      saveApplications(list);
+  
+      return newApp.id;
+    } catch (err) {
+      console.error("FETCH ERROR:", err);
+      alert("Backend connection failed. Check server.");
+      return null;
+    }
   };
 
   const updateApplication = (id, updates) => {
@@ -179,18 +240,38 @@ export function DataProvider({ children }) {
     });
   };
 
-  const addDocument = (doc) => {
-    const list = getDocuments();
-    list.push({
+  const addDocument = async (doc) => {
+    const newDoc = {
       ...doc,
-      id: uid('doc'),
-      uploadedAt: new Date().toISOString().split('T')[0],
+      id: uid("doc"),
+      uploadedAt: new Date().toISOString().split("T")[0],
       verified: false,
       verifiedBy: null,
-    });
-    saveDocuments(list);
+    };
+  
+    try {
+      const res = await fetch("http://127.0.0.1:5050/documents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newDoc),
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        alert(data.details || data.error || "Document upload failed");
+        return false;
+      }
+  
+      refresh();
+      return true;
+    } catch (err) {
+      console.log("DOCUMENT ERROR:", err);
+      return false;
+    }
   };
-
   const updateDocument = (id, updates) => {
     const docs = getDocuments();
     const prev = docs.find((d) => d.id === id);
@@ -209,9 +290,18 @@ export function DataProvider({ children }) {
     }
   };
 
-  const deleteDocument = (id) => {
-    saveDocuments(getDocuments().filter((d) => d.id !== id));
+  const deleteDocument = async (id) => {
+    try {
+      await fetch(`http://127.0.0.1:5050/documents/${id}`, {
+        method: "DELETE",
+      });
+  
+      refresh();
+    } catch (err) {
+      console.log(err);
+    }
   };
+
 
   const verifyStudentIdentity = (studentId, institution) => {
     const docs = getDocuments();
@@ -243,6 +333,14 @@ export function DataProvider({ children }) {
       identityVerifiedByInstitutionName: institution.name || 'Institution',
     };
     setItem(KEYS.users, users);
+    const records = getFundRecords();
+saveFundRecords(
+  records.map((r) =>
+    r.studentId === studentId
+      ? { ...r, reapplyAllowed: true }
+      : r
+  )
+);
 
     const session = getItem(KEYS.session);
     if (session?.id === studentId) {
@@ -343,76 +441,84 @@ export function DataProvider({ children }) {
 
   const allowStudentReapply = (studentId, adminName) => {
     const users = getItem(KEYS.users, []);
-    const idx = users.findIndex((u) => u.id === studentId);
-    if (idx === -1) return;
-
-    users[idx] = {
-      ...users[idx],
-      scholarshipReapplyAllowed: true,
-      scholarshipReapplyAllowedAt: new Date().toISOString().split('T')[0],
-      scholarshipReapplyAllowedBy: adminName || 'Administrator',
-    };
-    setItem(KEYS.users, users);
-
+  
+    const updatedUsers = users.map((u) =>
+      u.id === studentId
+        ? {
+            ...u,
+            scholarshipReapplyAllowed: true,
+            hasReceivedScholarshipFund: false,
+            scholarshipReapplyAllowedAt: new Date().toISOString().split('T')[0],
+            scholarshipReapplyAllowedBy: adminName || 'Administrator',
+          }
+        : u
+    );
+  
+    saveUsers(updatedUsers);
+  
+    const records = getFundRecords();
+  
+    saveFundRecords(
+      records.map((r) =>
+        r.studentId === studentId
+          ? { ...r, reapplyAllowed: true }
+          : r
+      )
+    );
+  
     const session = getItem(KEYS.session);
     if (session?.id === studentId) {
-      setItem(KEYS.session, stripPassword(users[idx]));
+      const refreshed = updatedUsers.find((u) => u.id === studentId);
+      setItem(KEYS.session, stripPassword(refreshed));
     }
-
+  
     addNotification({
       userId: studentId,
       type: 'success',
       title: 'You may apply again',
-      message:
-        'The administration has allowed you to apply for new scholarship programs.',
+      message: 'The administration has allowed you to apply for new scholarship programs.',
     });
-
+  
     emitDataChange();
   };
 
   const resetAllStudentsEligibility = (adminName) => {
     const users = getItem(KEYS.users, []);
-    const applications = getApplications();
-    const fundRecords = getFundRecords();
     const allowedAt = new Date().toISOString().split('T')[0];
     const allowedBy = adminName || 'Administrator';
-    const toNotify = [];
-
-    const updated = users.map((u) => {
-      if (u.role !== 'student') return u;
-      const received = studentHasReceivedScholarshipFund(
-        u,
-        fundRecords,
-        applications,
-        u.id
-      );
-      if (!received || u.scholarshipReapplyAllowed === true) return u;
-      toNotify.push(u.id);
-      return {
-        ...u,
-        scholarshipReapplyAllowed: true,
-        scholarshipReapplyAllowedAt: allowedAt,
-        scholarshipReapplyAllowedBy: allowedBy,
-      };
-    });
-
-    saveUsers(updated);
-
+  
+    const updatedUsers = users.map((u) =>
+      u.role === 'student'
+        ? {
+            ...u,
+            scholarshipReapplyAllowed: true,
+            hasReceivedScholarshipFund: false,
+            scholarshipReapplyAllowedAt: allowedAt,
+            scholarshipReapplyAllowedBy: allowedBy,
+          }
+        : u
+    );
+  
+    saveUsers(updatedUsers);
+  
+    saveFundRecords(
+      getFundRecords().map((r) => ({
+        ...r,
+        reapplyAllowed: true,
+      }))
+    );
+  
+    saveApplications(
+      getApplications().filter((a) => a.fundStatus !== 'received')
+    );
+  
     const session = getItem(KEYS.session);
     if (session?.id) {
-      const refreshed = updated.find((u) => u.id === session.id);
+      const refreshed = updatedUsers.find((u) => u.id === session.id);
       if (refreshed) setItem(KEYS.session, stripPassword(refreshed));
     }
-
-    toNotify.forEach((studentId) => {
-      addNotification({
-        userId: studentId,
-        type: 'success',
-        title: 'You may apply again',
-        message:
-          'The administration has opened a new scholarship cycle. You may apply for new programs.',
-      });
-    });
+  
+    emitDataChange();
   };
 
   const addAnnouncement = (ann) => {
